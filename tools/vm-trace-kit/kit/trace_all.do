@@ -5,11 +5,15 @@
 
 onerror {resume}
 transcript file trace_transcript.log
+# The SEP divider warns about undefined inputs on every evaluation; printing
+# thousands of these slows the run down badly, so silence the library warnings.
+quietly set StdArithNoWarnings 1
+quietly set NumericStdNoWarnings 1
 
 quietly set kitdir [pwd]
 quietly set outdir [file join $kitdir out]
 file mkdir $outdir
-quietly set errlog [open [file join $outdir errors.txt] w]
+quietly set errlog [open [file join $outdir errors.txt] a]
 
 proc load_design {} {
     global sepdir
@@ -48,8 +52,15 @@ proc sample {sigs} {
 }
 
 proc trace_one {name memfile machine clocks} {
-    global outdir
+    global outdir StdArithNoWarnings NumericStdNoWarnings
+    # A program is finished once its RAM dump exists; skip it on a re-run.
+    if {[file exists [file join $outdir $name.ram.mem]]} {
+        echo "=== $name already recorded, skipping"
+        return
+    }
     load_design
+    set StdArithNoWarnings 1
+    set NumericStdNoWarnings 1
     force -deposit /processor/machine $machine
     force -freeze /processor/clk 1 0, 0 {25 ns} -r 50 ns
     run 0 ns
