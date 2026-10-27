@@ -4,10 +4,10 @@
 # It drives the model the same way SEPSim Beta does: force the architecture,
 # force a 50 ns clock, load the .mem into /processor/as_ram/asram, then run.
 #
-# Signals are captured three independent ways, so one failing does not lose the run:
+# Signals are captured two independent ways, so one failing does not lose the run:
 #   <name>.vcd    ModelSim VCD dump of every signal (vcd add -r)
-#   <name>.lst    ModelSim list output, strobed every 25 ns (handles enum states)
-#   <name>.trace  per-half-clock examine of every signal, changes only
+#   <name>.trace  per-half-clock examine of every signal, changes only (includes enum states)
+# (ModelSim 6.1e examine has no -radix option; pick_examine falls back to -binary.)
 
 onerror {resume}
 transcript file trace_transcript.log
@@ -117,10 +117,6 @@ proc trace_one {name memfile machine clocks} {
         vcd file [file join $outdir $name.vcd]
         vcd add -r /processor/*
     } msg]} { note "$name: vcd failed: $msg" }
-    if {[catch {
-        add list -r /processor/*
-        configure list -usestrobe 1 -strobestart {25 ns} -strobeperiod {25 ns}
-    } msg]} { note "$name: list setup failed: $msg" }
 
     run 0 ns
     mem load -format bin -infile $memfile -filldata 0000000000000000 /processor/as_ram/asram
@@ -153,9 +149,7 @@ proc trace_one {name memfile machine clocks} {
         flush $f
     }
     close $f
-    if {[catch {write list [file join $outdir $name.lst]} msg]} { note "$name: write list failed: $msg" }
     catch {vcd flush}
-    catch {delete list *}
     catch {mem save -outfile [file join $outdir $name.cache.mem] -format bin -wordsperline 20 /processor/cache/storage}
     catch {mem save -outfile [file join $outdir $name.ram.mem] -format bin -wordsperline 20 /processor/as_ram/asram}
     quit -sim
