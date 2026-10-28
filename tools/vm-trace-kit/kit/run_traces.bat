@@ -2,6 +2,7 @@
 rem SEPSim trace kit: double-click this file inside the Windows XP VM.
 cd /d "%~dp0"
 call config.bat
+if not exist "%VSIM_EXE%" set VSIM_EXE=vsim.exe
 
 if not exist "%SEPSIM_DIR%\work\_info" (
   echo Could not find the SEPSim "work" folder in: %SEPSIM_DIR%

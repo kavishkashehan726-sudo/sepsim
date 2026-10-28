@@ -81,7 +81,7 @@ Before the first instruction the control unit spends one clock in `init`.
 | `jump n` | PC = PC + 3 + n, always |
 | `call n` | mem[0x94] = PC + 3 (return address), PC = n (**absolute**, not relative) |
 | `ret` | PC = mem[0x94] |
-| `looz n` | *open.* With the counter at 0 it decremented (flags show 0xFFFF) and fell through instead of jumping. Counter location not seen yet |
+| `looz n` | *partly open.* The counter is **mem[0x95]**: `idecode` loads MAR with the constant 0x95, `looz2` reads it into MDR, `looz3` decrements it in the ALU (flags set from the result, MDR = result). With the counter at 0 the result was 0xFFFF, nothing was written back to memory and it fell through to the next instruction. The control unit also has `looz5` and `looz6` states, not reached yet (round 2 tests counters 1, 2 and 3) |
 | `nop` | nothing, 9 clocks (direct mode) |
 
 ## Hangs (the model stops making progress)
@@ -109,7 +109,7 @@ Other invalid modes do nothing and continue: `loadacc &0x90` leaves acc unchange
 
 ## Open questions for round 2
 
-- `looz`: counter address, when it writes back, when it jumps.
+- `looz`: when it writes the counter back and when it jumps (counter address is 0x95).
 - `div` with negative operands, and with a negative divisor.
 - Flags for `mul` overflow (results that do not fit in 16 bits cannot happen with 8 x 8, but sign cases need checking).
 - Indirect `loadacc` and indirect store to a valid address.

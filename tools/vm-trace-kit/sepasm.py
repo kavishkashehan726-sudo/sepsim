@@ -1,4 +1,4 @@
-"""Minimal SEP assembler (Accumulator architecture) used to build trace-kit .mem files.
+"""Minimal SEP assembler (Accumulator and Stack) used to build trace-kit .mem files.
 
 Mirrors the legacy SEPSim Beta assembler as observed from real .prg/.mem pairs:
   * 48-bit instructions stored as three 16-bit words (bits 47-32, 31-16, 15-0)
@@ -6,6 +6,12 @@ Mirrors the legacy SEPSim Beta assembler as observed from real .prg/.mem pairs:
   * an instruction written without an operand reuses the previous line's
     addressing mode and operand (students rely on this for jump offsets)
   * .mem output = header, three blank lines, then "@<hex addr> " + up to 20 words per line
+
+Stack (machine 110) encoding is not confirmed yet: ISA.ini gives no operand field for it,
+so Stack operands go in both 39:21 and 19:1 unless a program says otherwise with
+"//@field hi" (39:21), "//@field lo" (19:1) or "//@field both".
+Test programs can also write a raw instruction:
+  .inst <opcode bits> <mode bits> <value for 39:21> [<value for 19:1>]
 """
 import re
 import sys
@@ -21,6 +27,13 @@ OPCODES_ACC = {
     "not": 0b10110, "shl": 0b10111, "shr": 0b11000, "rol": 0b11001,
     "ror": 0b11010, "mul": 0b11011, "div": 0b11100, "loadacc": 0b11111,
 }
+# Stack shares the jump/ALU opcodes; loadacc/storeacc become push/pop (ISA.ini).
+# swap and rotate3 share 01101 in ISA.ini; what tells them apart is still unknown.
+OPCODES_STACK = {k: v for k, v in OPCODES_ACC.items() if k not in ("loadacc", "storeacc")}
+OPCODES_STACK.update({"push": 0b11111, "pop": 0b00110, "dup": 0b00111,
+                      "swap": 0b01101, "rotate3": 0b01101})
+OPCODES = {"acc": OPCODES_ACC, "stack": OPCODES_STACK}
+DEFAULT_FIELD = {"acc": "hi", "stack": "both"}
 MODES = {"#": 0b000, "&": 0b101, "$": 0b010, "!": 0b110, "@": 0b111}
 DIRECT = 0b100
 OPERAND_BITS = 19
@@ -39,19 +52,35 @@ def parse_number(text, line_no):
     return value & ((1 << OPERAND_BITS) - 1)
 
 
-def assemble(source):
+def encode(opcode, mode, hi, lo):
+    inst = (opcode << 43) | (mode << 40) | (hi << 21) | (lo << 1)
+    return [(inst >> 32) & 0xFFFF, (inst >> 16) & 0xFFFF, inst & 0xFFFF]
+
+
+def assemble(source, machine="acc"):
     """Return the list of 16-bit program words for a .prg source string."""
+    opcodes = OPCODES[machine]
+    m = re.search(r"//@field\s+(hi|lo|both)", source)
+    field = m.group(1) if m else DEFAULT_FIELD[machine]
     words = []
     mode, operand = 0b000, 0  # what the legacy tool does before any operand is seen is unverified
     for line_no, raw in enumerate(source.splitlines(), 1):
         line = raw.split("//", 1)[0].strip()
         if not line:
             continue
-        m = re.match(r"([A-Za-z]+)\s*(.*)$", line)
+        if line.lower().startswith(".inst"):
+            parts = line.split()[1:]
+            if len(parts) not in (3, 4):
+                raise AsmError(f"Line {line_no}: .inst needs opcode, mode and 1 or 2 values")
+            hi = parse_number(parts[2], line_no)
+            lo = parse_number(parts[3], line_no) if len(parts) == 4 else 0
+            words += encode(int(parts[0], 2), int(parts[1], 2), hi, lo)
+            continue
+        m = re.match(r"([A-Za-z0-9]+)\s*(.*)$", line)
         if not m:
             raise AsmError(f"Line {line_no}: syntax error")
         mnemonic, rest = m.group(1).lower(), m.group(2).strip()
-        if mnemonic not in OPCODES_ACC:
+        if mnemonic not in opcodes:
             raise AsmError(f"Line {line_no}: unknown instruction '{mnemonic}'")
         if rest:
             if rest[0] in MODES:
@@ -59,8 +88,9 @@ def assemble(source):
             else:
                 mode = DIRECT
             operand = parse_number(rest, line_no)
-        inst = (OPCODES_ACC[mnemonic] << 43) | (mode << 40) | (operand << 21)
-        words += [(inst >> 32) & 0xFFFF, (inst >> 16) & 0xFFFF, inst & 0xFFFF]
+        hi = operand if field in ("hi", "both") else 0
+        lo = operand if field in ("lo", "both") else 0
+        words += encode(opcodes[mnemonic], mode, hi, lo)
     return words
 
 
@@ -79,4 +109,4 @@ def to_mem(program, data=None):
 
 if __name__ == "__main__":
     src = open(sys.argv[1], encoding="latin-1").read()
-    sys.stdout.write(to_mem(assemble(src)))
+    sys.stdout.write(to_mem(assemble(src, sys.argv[2] if len(sys.argv) > 2 else "acc")))

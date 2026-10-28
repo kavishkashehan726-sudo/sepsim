@@ -1,6 +1,8 @@
 """Build the SEPSim VM trace kit (a folder + zip) from the test programs in this directory.
 
-Usage: python make_kit.py <output-dir>
+Usage: python make_kit.py <output-dir> [name-prefix ...]
+With prefixes, only programs whose names start with one of them go into the kit
+(e.g. "b s" for round 2), so programs already recorded are not run again.
 """
 import os
 import re
@@ -12,24 +14,25 @@ from sepasm import assemble, to_mem
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CLOCKS = 400
-ARCHITECTURES = {"acc": "101"}  # Stack (110) programs are added once its ISA document arrives
+ARCHITECTURES = {"acc": "101", "stack": "110"}
+CHECK_DIRS = ("assembler-check", "stack-assembler-check")
 
 
 def crlf(text):
     return text.replace("\r\n", "\n").replace("\n", "\r\n")
 
 
-def build(out_root):
+def build(out_root, prefixes=()):
     kit = os.path.join(out_root, "sepsim-trace-kit")
     shutil.rmtree(kit, ignore_errors=True)
-    for sub in ("mem", "programs", "extra", "assembler-check"):
+    for sub in ("mem", "programs", "extra") + CHECK_DIRS:
         os.makedirs(os.path.join(kit, sub))
 
     manifest = ["# name machine clocks"]
     for arch, machine in ARCHITECTURES.items():
         src_dir = os.path.join(HERE, "programs", arch)
         for fn in sorted(os.listdir(src_dir)):
-            if not fn.endswith(".prg"):
+            if not fn.endswith(".prg") or (prefixes and not fn.startswith(tuple(prefixes))):
                 continue
             name = fn[:-4]
             source = open(os.path.join(src_dir, fn), encoding="latin-1").read()
@@ -40,7 +43,7 @@ def build(out_root):
             if m:
                 clocks = int(m.group(1))
             with open(os.path.join(kit, "mem", name + ".mem"), "w", newline="") as f:
-                f.write(to_mem(assemble(source), data))
+                f.write(to_mem(assemble(source, arch), data))
             with open(os.path.join(kit, "programs", fn), "w", newline="") as f:
                 f.write(crlf(source))
             manifest.append(f"{name} {machine} {clocks}")
@@ -51,10 +54,11 @@ def build(out_root):
         with open(os.path.join(HERE, "kit", fn), newline="") as src, \
                 open(os.path.join(kit, fn), "w", newline="") as dst:
             dst.write(crlf(src.read()))
-    for fn in sorted(os.listdir(os.path.join(HERE, "assembler-check"))):
-        with open(os.path.join(HERE, "assembler-check", fn), newline="") as src, \
-                open(os.path.join(kit, "assembler-check", fn), "w", newline="") as dst:
-            dst.write(crlf(src.read()))
+    for check in CHECK_DIRS:
+        for fn in sorted(os.listdir(os.path.join(HERE, check))):
+            with open(os.path.join(HERE, check, fn), newline="") as src, \
+                    open(os.path.join(kit, check, fn), "w", newline="") as dst:
+                dst.write(crlf(src.read()))
     with open(os.path.join(HERE, "README.txt"), newline="") as src, \
             open(os.path.join(kit, "README.txt"), "w", newline="") as dst:
         dst.write(crlf(src.read()))
@@ -71,4 +75,4 @@ def build(out_root):
 
 
 if __name__ == "__main__":
-    print(build(sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "dist")))
+    print(build(sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "dist"), sys.argv[2:]))

@@ -1,0 +1,12 @@
+// indirect load, store and add with valid addresses
+//@data 0x90 0x1234
+//@data 0x91 0x0090
+//@data 0x92 0x0088
+//@clocks 200
+loadacc &0x91
+storeacc &0x92
+loadacc #1
+add &0x91
+storeacc 0x80
+loadacc 0x91
+storeacc 0x89
