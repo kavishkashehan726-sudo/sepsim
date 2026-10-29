@@ -26,5 +26,30 @@ npm run build      # the app, built for Chromium 108 and later
 
 - `packages/sep-core`: the SEP processor model, assembler and file formats (no UI).
 - `packages/sep-app`: the user interface (React, Tailwind, Monaco bundled locally so it
-  works offline). The desktop shells (Tauri for Windows 10/11, Electron 22 for Windows 7/8)
-  will wrap this build.
+  works offline).
+- `desktop/tauri`: the Windows 10/11 app (Tauri, using the WebView2 built into Windows).
+- `desktop/electron`: the Windows 7/8 app (Electron 22, the last Electron that runs there).
+
+## Windows installers
+
+GitHub Actions builds them on every push (see the **Desktop installers** workflow; the
+installers are attached to each run). Pushing a tag such as `v0.1.0` also makes a draft
+release with them.
+
+| Installer | For | Notes |
+| --- | --- | --- |
+| `SEPSim-<version>-Windows-10-11-64-bit-Setup.exe` | Windows 10 and 11, 64-bit | Includes WebView2, so it installs offline |
+| `SEPSim-<version>-Windows-10-11-32-bit-Setup.exe` | Windows 10, 32-bit | Includes WebView2, so it installs offline |
+| `SEPSim-<version>-Windows-7-8-Setup.exe` | Windows 7, 8 and 8.1, 32- and 64-bit | Picks the right build itself |
+
+To build them yourself on Windows:
+
+```
+npm install
+cd desktop/tauri && npm install && npm run dist              # Windows 10/11
+cd desktop/electron && npm install && npm run dist           # Windows 7/8
+```
+
+The Tauri build needs Rust and the Visual Studio C++ build tools
+(see https://tauri.app/start/prerequisites/). For a 32-bit build, add
+`-- --target i686-pc-windows-msvc` after `npm run dist`.

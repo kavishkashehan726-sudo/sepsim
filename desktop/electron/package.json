@@ -1,0 +1,47 @@
+{
+  "name": "sepsim-electron",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SEPSim for Windows 7 and 8 (Electron 22, the last Electron that runs there)",
+  "main": "main.cjs",
+  "author": "SEPSim contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kavishkashehan726-sudo/sepsim.git"
+  },
+  "scripts": {
+    "app": "npm run build --prefix ../.. && node copy-app.cjs",
+    "start": "npm run app && electron .",
+    "dist": "npm run app && electron-builder --win nsis --ia32 --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "22.3.27",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "io.github.kavishkashehan726.sepsim",
+    "productName": "SEPSim",
+    "copyright": "SEPSim contributors",
+    "files": [
+      "main.cjs",
+      "app/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "icon": "../icons/icon.ico",
+      "artifactName": "SEPSim-${version}-Windows-7-8-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "SEPSim",
+      "installerIcon": "../icons/icon.ico",
+      "uninstallerIcon": "../icons/icon.ico"
+    },
+    "publish": null
+  }
+}
