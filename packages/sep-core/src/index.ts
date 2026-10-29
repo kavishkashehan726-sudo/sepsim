@@ -4,3 +4,4 @@ export * from "./control.js";
 export * from "./logic.js";
 export * from "./machine.js";
 export * from "./memfile.js";
+export * from "./signals.js";

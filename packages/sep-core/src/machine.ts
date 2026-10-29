@@ -25,7 +25,7 @@ interface Reg {
   op: Bits;
 }
 
-type CuOutputName = keyof CuOutputs;
+export type CuOutputName = keyof CuOutputs;
 
 const OUTPUT_WIDTH: Record<CuOutputName, number> = {
   alu_opcode: 5, alu_rst: 1, we_sram: 1, oe_sram: 1, ce_sram: 1, pc: 1, mar: 1, mdr: 1,

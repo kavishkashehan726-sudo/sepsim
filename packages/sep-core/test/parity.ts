@@ -5,47 +5,22 @@
 import { readFileSync } from "node:fs";
 import { type Bits, toBinary } from "../src/logic.js";
 import { Machine, RAM_WORDS } from "../src/machine.js";
+import { MEMORIES, SIGNALS } from "../src/signals.js";
 import { parseMem } from "../src/memfile.js";
 import { arrayWords, type GoldenCase, readTrace, type TraceRow } from "./trace.js";
 
 const P = "/processor/";
 
 type Probe = (m: Machine) => string;
-const b = (f: (m: Machine) => Bits): Probe => (m) => toBinary(f(m));
+const show = (v: Bits | string) => (typeof v === "string" ? v : toBinary(v));
 
-/** Trace signal → how to read the same value from the engine. */
-export const PROBES: Record<string, Probe> = {
-  "control_unit/cu_state": (m) => m.state,
-  "control_unit/next_cu_state": (m) => m.nextState,
-  sig_pc_out: b((m) => m.pc.op),
-  sig_mar_out: b((m) => m.mar.op),
-  sig_mdr_out: b((m) => m.mdr.op),
-  sig_sr_out: b((m) => m.sr.op),
-  "instruction_reg/op": (m) => m.ir.map(toBinary).join(""),
-  sig_mem_out: b((m) => m.nets.mem),
-  sig_alu_1: b((m) => m.nets.alu1),
-  sig_alu_2: b((m) => m.nets.alu2),
-  sig_alu_out: b((m) => m.nets.aluOut),
-  sig_sr_in: b((m) => m.nets.srIn),
-  sig_ir_op1: b((m) => m.nets.irOp1),
-  sig_ir_op2: b((m) => m.nets.irOp2),
-  sig_mux9_out: b((m) => m.nets.mux9),
-  sig_mux3_out: b((m) => m.nets.mux3),
-  sig_mux4_pc: b((m) => m.nets.mux4),
-  sig_mux5_mar: b((m) => m.nets.mux5),
-  sig_mux6_mdr: b((m) => m.nets.mux6),
-  sig_acc_stack_rb_out: b((m) => m.cacheOut),
-  "cache/storage": (m) => toBinary(m.storage[0]!),
-  "as_ram/asram": (m) => Array.from(m.ram).map((w) => w.toString(2).padStart(16, "0")).reverse().join(" "),
-  "program_counter_reg/inset": b((m) => m.pc.inset),
-  "memory_address_reg/inset": b((m) => m.mar.inset),
-  "memory_data_reg/inset": b((m) => m.mdr.inset),
-  "status_reg/inset": b((m) => m.sr.inset),
-};
-for (const name of ["alu_opcode", "alu_rst", "we_sram", "oe_sram", "ce_sram", "pc", "mar", "mdr", "buf_s3",
-  "sr", "op1", "ir", "acc", "mux_1", "mux_2", "mux_3", "mux_4", "mux_5", "mux_6", "mux_9"] as const) {
-  PROBES[`control_unit/${name}`] = b((m) => m.out[name]);
-}
+/** Trace signal → how to read the same value from the engine: every signal the app can show. */
+export const PROBES: Record<string, Probe> = Object.fromEntries(
+  SIGNALS.map((s) => [s.path.slice(P.length), (m: Machine) => show(s.read(m))]),
+);
+const ram = MEMORIES.find((x) => x.path === `${P}as_ram/asram`)!;
+PROBES["as_ram/asram"] = (m) => Array.from({ length: ram.words }, (_, a) => toBinary(ram.read(m, a))).reverse().join(" ");
+PROBES["cache/storage"] = (m) => toBinary(m.storage[0]!);
 
 /** Reduce a recorded value to what the engine models. */
 function expected(signal: string, value: string): string {

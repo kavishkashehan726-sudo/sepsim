@@ -42,12 +42,12 @@ export function resize(b: Bits, w: number, signed = false): Bits {
   return { w, v, u, k: b.k };
 }
 
+/** Bit i of x; works for values wider than 32 bits (up to 53). */
+const bitOf = (x: number, i: number): number => (i < 31 ? (x >>> i) & 1 : Math.floor(x / 2 ** i) % 2);
+
 export function toBinary(b: Bits): string {
   let s = "";
-  for (let i = b.w - 1; i >= 0; i--) {
-    const bit = 1 << i;
-    s += b.u & bit ? b.k : b.v & bit ? "1" : "0";
-  }
+  for (let i = b.w - 1; i >= 0; i--) s += bitOf(b.u, i) ? b.k : bitOf(b.v, i) ? "1" : "0";
   return s;
 }
 
@@ -56,23 +56,23 @@ export function fromBinary(s: string): Bits {
   let u = 0;
   let k: Unknown = "X";
   for (const ch of s) {
-    v = (v << 1) >>> 0;
-    u = (u << 1) >>> 0;
-    if (ch === "1") v |= 1;
+    v *= 2;
+    u *= 2;
+    if (ch === "1") v += 1;
     else if (ch !== "0") {
-      u |= 1;
+      u += 1;
       if (ch === "U" || ch === "Z") k = ch;
     }
   }
-  return { w: s.length, v: v >>> 0, u: u >>> 0, k };
+  return { w: s.length, v, u, k };
 }
 
 /** Hex for display; unknown nibbles show their unknown character. */
 export function toHex(b: Bits): string {
   let s = "";
+  const nibble = (x: number, i: number) => Math.floor(x / 2 ** (i * 4)) % 16;
   for (let i = Math.ceil(b.w / 4) - 1; i >= 0; i--) {
-    const m = (0xf << (i * 4)) >>> 0;
-    s += b.u & m ? b.k : ((b.v >>> (i * 4)) & 0xf).toString(16);
+    s += nibble(b.u, i) ? b.k : nibble(b.v, i).toString(16);
   }
   return s;
 }
