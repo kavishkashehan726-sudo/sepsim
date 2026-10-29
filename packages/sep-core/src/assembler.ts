@@ -20,6 +20,20 @@ export const OPCODES: Readonly<Record<string, number>> = {
 export const MODES: Readonly<Record<string, number>> = { "#": 0b000, "&": 0b101, "$": 0b010, "!": 0b110, "@": 0b111 };
 export const DIRECT = 0b100;
 export const OPERAND_BITS = 19;
+
+/**
+ * The instruction set the assembler uses. The old SEPSim let advanced users edit it
+ * (Edit > Settings > Instruction Set); the default is the Accumulator set above.
+ */
+export interface InstructionSet {
+  opcodes: Readonly<Record<string, number>>;
+  /** Mode symbol to its 3 bits. */
+  modes: Readonly<Record<string, number>>;
+  /** Bits used when an operand has no mode symbol. */
+  direct: number;
+}
+
+export const ACCUMULATOR_ISA: InstructionSet = { opcodes: OPCODES, modes: MODES, direct: DIRECT };
 const OPERAND_MASK = (1 << OPERAND_BITS) - 1;
 
 export interface Diagnostic {
@@ -75,7 +89,7 @@ export function encode(opcode: number, mode: number, operand: number): [number, 
 export const buildSummary = (p: Program): string =>
   `Build ${p.errors.length ? "failed" : "succeeded"}. ${p.errors.length} errors, 0 warnings`;
 
-export function assemble(source: string): Program {
+export function assemble(source: string, isa: InstructionSet = ACCUMULATOR_ISA): Program {
   const words: number[] = [];
   const instructions: Instruction[] = [];
   const errors: Diagnostic[] = [];
@@ -93,20 +107,20 @@ export function assemble(source: string): Program {
     }
     const mnemonic = m[1]!.toLowerCase();
     let rest = m[2]!.trim();
-    const opcode = OPCODES[mnemonic];
+    const opcode = Object.hasOwn(isa.opcodes, mnemonic) ? isa.opcodes[mnemonic] : undefined;
     if (opcode === undefined) {
       errors.push({ line, message: `Unknown instruction '${mnemonic}'` });
       return;
     }
     if (rest) {
-      const prefix = MODES[rest[0]!];
+      const prefix = Object.hasOwn(isa.modes, rest[0]!) ? isa.modes[rest[0]!] : undefined;
       if (prefix !== undefined) rest = rest.slice(1);
       const value = parseOperand(rest);
       if (typeof value === "string") {
         errors.push({ line, message: value });
         return;
       }
-      mode = prefix ?? DIRECT;
+      mode = prefix ?? isa.direct;
       operand = value;
     }
     instructions.push({ line, address: words.length, mnemonic, opcode, mode, operand });

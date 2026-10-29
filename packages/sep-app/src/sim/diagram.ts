@@ -115,3 +115,51 @@ export function parseDia(data: ArrayBuffer, name: string): Diagram {
   }
   return { name, elements };
 }
+
+const KINDS: ElementKind[] = ["bus", "control", "register", "memory", "control-unit", "alu", "mux"];
+
+export const KIND_LABELS: Record<ElementKind, string> = {
+  bus: "Data/address bus", control: "Control bus", register: "Register", memory: "Memory",
+  "control-unit": "Control unit", alu: "ALU", mux: "Mux",
+};
+
+/** Accept a saved diagram (JSON), or null if it does not look like one. */
+export function reviveDiagram(saved: unknown): Diagram | null {
+  if (!saved || typeof saved !== "object") return null;
+  const d = saved as Partial<Diagram>;
+  if (typeof d.name !== "string" || !Array.isArray(d.elements)) return null;
+  const ok = d.elements.every((e) => e && KINDS.includes(e.kind) && Array.isArray(e.points) && typeof e.name === "string");
+  return ok ? { name: d.name, elements: d.elements } : null;
+}
+
+/** Write a diagram in the old SEPSim .dia format (see parseDia), so the old app can open it. */
+export function writeDia(d: Diagram): Uint8Array {
+  const kindCode = (k: ElementKind) => Number(Object.entries(DIA_KINDS).find(([, v]) => v === k)?.[0] ?? 1);
+  const latin = (s: string) => Uint8Array.from(s, (c) => c.charCodeAt(0) & 0xff);
+  const parts: Uint8Array[] = [];
+  d.elements.forEach((e, i) => {
+    const name = latin(e.name);
+    const sig = latin(e.signal ?? "");
+    const head = new DataView(new ArrayBuffer(36 + e.points.length * 8));
+    head.setUint32(0, i + 1, true);
+    head.setUint32(4, kindCode(e.kind), true);
+    head.setUint16(8, e.kind === "bus" || e.kind === "control" ? e.width ?? 1 : 0, true);
+    head.setUint16(10, 0x23, true);
+    head.setUint32(12, name.length, true);
+    head.setUint32(16, e.points.length, true);
+    head.setUint32(22, sig.length, true);
+    head.setUint32(32, e.kind === "register" ? 0x00ff3333 : 0, true);
+    e.points.forEach(([x, y], j) => {
+      head.setInt32(36 + j * 8, x, true);
+      head.setInt32(40 + j * 8, y, true);
+    });
+    parts.push(new Uint8Array(head.buffer), sig, name);
+  });
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
+}
