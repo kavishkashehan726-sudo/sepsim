@@ -1,0 +1,12 @@
+{
+  "name": "sepsim",
+  "private": true,
+  "description": "Offline desktop rebuild of the SEPSim processor simulator",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  }
+}

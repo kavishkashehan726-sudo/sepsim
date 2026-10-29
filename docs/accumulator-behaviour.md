@@ -96,7 +96,6 @@ simulator must reproduce them (the student sees the simulation stop advancing).
 
 | Program | Stuck in |
 | --- | --- |
-| any store to an address above 0x96 (`storeacc 0x1F4`, `storeacc &p` where p holds 0xA0) | `mdr_to_mem1_acc` |
 | `nop` with immediate mode (`loadacc #21` then a bare `nop` reuses mode `#`) | `idecode` |
 | `add $1` (register-direct mode is not valid for Accumulator) | `idecode` |
 | `add !p` and `add @p` (modes 110 and 111) | `idecode` |
@@ -104,6 +103,28 @@ simulator must reproduce them (the student sees the simulation stop advancing).
 Other invalid modes do nothing and continue: `loadacc &p`, `loadacc !p` and `loadacc @p`
 leave acc unchanged, `storeacc #0x55` writes nothing, `shl #3` shifts as usual. The `!` and
 `@` modes are not implemented for Accumulator at all.
+
+## Memory outside 0x00..0x96 stops the simulation
+
+Any read or write of an address above 0x96 is a fatal ModelSim error: the simulation
+stops at that instant (the recorder keeps sampling, so the trace shows the clock frozen).
+Seen with `storeacc 0x1F4` (stops at the rising edge into `mdr_to_mem1_acc`, 950 ns in
+a17) and with the program counter running past 0x96 (stops at the falling edge that
+moves MAR to 0x97, 22925 ns in a13). Values downstream of the bad address keep what
+they had: memory output, ALU inputs and so on do not update.
+
+## Datapath details the engine needed
+
+- mux 3 (accumulator input) with an undefined select passes MDR.
+- mux 9 picks operand 1 only for select 0; anything else, including the U it starts
+  with, picks operand 2.
+- mux 4 (PC input) gets only the low 16 bits of mux 9, zero-extended: a jump or call
+  target never sets PC bits 18..16.
+- The PC master latch starts undefined; the PC output starts at 0.
+- Single-operand instructions (inc, not, shl, shr, rol, ror) leave mux 9 as it was.
+
+`packages/sep-core` replays all 27 recorded Accumulator programs and matches 46 signals
+at every half clock, including where the simulation stops.
 
 ## Assembler (from 13 real .prg/.mem pairs)
 
