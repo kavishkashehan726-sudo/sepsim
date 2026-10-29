@@ -34,7 +34,9 @@ jobs:
 
   windows-7-8:
     needs: test
-    runs-on: windows-latest
+    # Windows Server 2022 is the oldest runner GitHub offers, and the closest to the
+    # Windows 7/8 PCs this build is for.
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -56,9 +58,13 @@ jobs:
           $setup = Get-ChildItem desktop/electron/dist/*-Setup.exe | Select-Object -First 1
           Start-Process $setup.FullName -ArgumentList "/S" -Wait
           $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs\SEPSim\SEPSim.exe"
-          $app = Start-Process $exe.FullName -PassThru
+          $log = "$env:RUNNER_TEMP\sepsim.log"
+          $app = Start-Process $exe.FullName -ArgumentList "--enable-logging", "--log-file=$log" -PassThru
           Start-Sleep -Seconds 15
-          if ($app.HasExited) { throw "SEPSim exited straight away (code $($app.ExitCode))" }
+          if ($app.HasExited) {
+            if (Test-Path $log) { Get-Content $log -Tail 100 }
+            throw "SEPSim exited straight away (code $($app.ExitCode))"
+          }
           Stop-Process -Id $app.Id -Force
       - uses: actions/upload-artifact@v4
         with:
