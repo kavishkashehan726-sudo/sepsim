@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { assemble, encode } from "../src/assembler.js";
+import { assemble, buildSummary, encode } from "../src/assembler.js";
 import { formatMem, parseMem } from "../src/memfile.js";
 import { goldenCases } from "./trace.js";
 
@@ -16,11 +16,14 @@ describe("assembler", () => {
   });
 
   it("reports unknown instructions and bad operands by line", () => {
-    const p = assemble("loadacc #1\nfoo 2\n\nadd #zz\n");
+    const p = assemble("loadacc #1\nfoo 2\n\nadd #zz\nadd #0x1g\nadd #1, 2\n");
     expect(p.errors).toEqual([
-      { line: 2, message: "unknown instruction 'foo'" },
-      { line: 4, message: "invalid operand 'zz'" },
+      { line: 2, message: "Unknown instruction 'foo'" },
+      { line: 4, message: "Invalid operand" },
+      { line: 5, message: "Invalid char in hex integer" },
+      { line: 6, message: "Too many operands" },
     ]);
+    expect(buildSummary(p)).toBe("Build failed. 4 errors, 0 warnings");
   });
 
   const cases = goldenCases("accumulator");
