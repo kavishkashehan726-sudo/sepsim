@@ -1,0 +1,13 @@
+{
+  "name": "sepsim-tauri",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SEPSim for Windows 10 and 11 (Tauri, using the WebView2 built into Windows)",
+  "scripts": {
+    "tauri": "tauri",
+    "dist": "npm run build --prefix ../.. && tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0"
+  }
+}

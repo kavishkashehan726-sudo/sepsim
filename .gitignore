@@ -2,3 +2,7 @@ tools/vm-trace-kit/dist/
 __pycache__/
 node_modules/
 packages/*/dist/
+desktop/electron/app/
+desktop/electron/dist/
+desktop/tauri/src-tauri/target/
+desktop/tauri/src-tauri/gen/
