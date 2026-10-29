@@ -31,8 +31,10 @@ export interface Memory {
 const P = "/processor/";
 const signals: Signal[] = [];
 
+/** Adds a signal; `path` is relative to /processor/ unless it is a {slice} expression. */
 function bits(path: string, width: number, read: (m: Machine) => Bits, write?: (m: Machine, v: Bits) => void): void {
-  signals.push(write ? { path: P + path, width, kind: "bits", read, write } : { path: P + path, width, kind: "bits", read });
+  const full = path.startsWith("{") ? path : P + path;
+  signals.push(write ? { path: full, width, kind: "bits", read, write } : { path: full, width, kind: "bits", read });
 }
 const constant = (path: string, value: Bits) => bits(path, value.w, () => value);
 const clk = (m: Machine) => known(1, m.clk);
@@ -170,11 +172,11 @@ bits("cache/machine_type", 3, () => known(3, 0b101));
 bits("cache/ip", 16, (m) => m.nets.mux3);
 bits("cache/op", 16, (m) => m.cacheOut);
 bits("cache/acc_we", 1, (m) => m.out.acc);
-bits("{/processor/cache/storage[0]}".slice(P.length), 16, (m) => m.storage[0]!, setAcc);
-bits("{/processor/instruction_reg/op[47:43]}".slice(P.length), 5, (m) => irSlice(m, 47, 43));
-bits("{/processor/instruction_reg/op[42:40]}".slice(P.length), 3, (m) => irSlice(m, 42, 40));
-bits("{/processor/instruction_reg/op[39:21]}".slice(P.length), 19, (m) => irSlice(m, 39, 21));
-bits("{/processor/instruction_reg/op[19:1]}".slice(P.length), 19, (m) => irSlice(m, 19, 1));
+bits("{/processor/cache/storage[0]}", 16, (m) => m.storage[0]!, setAcc);
+bits("{/processor/instruction_reg/op[47:43]}", 5, (m) => irSlice(m, 47, 43));
+bits("{/processor/instruction_reg/op[42:40]}", 3, (m) => irSlice(m, 42, 40));
+bits("{/processor/instruction_reg/op[39:21]}", 19, (m) => irSlice(m, 39, 21));
+bits("{/processor/instruction_reg/op[19:1]}", 19, (m) => irSlice(m, 19, 1));
 
 // Signals whose width comes from what they read.
 for (const s of signals) if (s.width === 0 && s.kind === "bits") s.width = (s.read(new Machine()) as Bits).w;

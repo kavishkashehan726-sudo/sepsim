@@ -117,6 +117,25 @@ export class Machine {
     return this.halfStep() && this.halfStep();
   }
 
+  /** Clock edges seen so far, counting the one at time 0. */
+  get clocks(): number {
+    return Math.floor(this.timeNs / (2 * HALF_PERIOD_NS));
+  }
+
+  /**
+   * Run clocks until the current instruction is complete, that is until the control unit
+   * is back in ifetch1 (IL mode). Stops early after `limit` clocks, which is how a hung
+   * instruction (for example `add $1`) shows. Returns the number of clocks run.
+   */
+  stepInstruction(limit = 1000): number {
+    let n = 0;
+    while (n < limit && this.step()) {
+      n++;
+      if (this.state === "ifetch1") break;
+    }
+    return n;
+  }
+
   get opcode(): number | null {
     const w = this.ir[0];
     return isKnown(resize({ ...w, v: w.v >>> 11, u: w.u >>> 11 }, 5)) ? (w.v >>> 11) & 0x1f : null;

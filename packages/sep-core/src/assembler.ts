@@ -44,12 +44,22 @@ export interface Program {
   errors: Diagnostic[];
 }
 
-function parseOperand(text: string): number | null {
+/** The operand value (19 bits), or the legacy assembler's message for why it is not one. */
+function parseOperand(text: string): number | string {
   const t = text.trim().toLowerCase();
-  const m = /^(-?)(0x[0-9a-f]+|\d+)$/.exec(t);
-  if (!m) return null;
-  const v = parseInt(m[2]!, m[2]!.startsWith("0x") ? 16 : 10);
-  return ((m[1] ? -v : v) & OPERAND_MASK) >>> 0;
+  if (t.includes(",")) return "Too many operands";
+  const neg = t.startsWith("-");
+  const body = neg ? t.slice(1) : t;
+  let v: number;
+  if (body.startsWith("0x")) {
+    if (!/^[0-9a-f]+$/.test(body.slice(2))) return "Invalid char in hex integer";
+    v = parseInt(body.slice(2), 16);
+  } else if (/^\d+$/.test(body)) {
+    v = parseInt(body, 10);
+  } else {
+    return "Invalid operand";
+  }
+  return ((neg ? -v : v) & OPERAND_MASK) >>> 0;
 }
 
 /** The three memory words of one instruction. */
@@ -60,6 +70,10 @@ export function encode(opcode: number, mode: number, operand: number): [number, 
   const w1 = (op & 0x7ff) << 5;
   return [w0, w1, 0];
 }
+
+/** The summary line the legacy program editor prints after a build or check. */
+export const buildSummary = (p: Program): string =>
+  `Build ${p.errors.length ? "failed" : "succeeded"}. ${p.errors.length} errors, 0 warnings`;
 
 export function assemble(source: string): Program {
   const words: number[] = [];
@@ -74,22 +88,22 @@ export function assemble(source: string): Program {
     if (!text) return;
     const m = /^([A-Za-z0-9]+)\s*(.*)$/.exec(text);
     if (!m) {
-      errors.push({ line, message: "syntax error" });
+      errors.push({ line, message: "Syntax error" });
       return;
     }
     const mnemonic = m[1]!.toLowerCase();
     let rest = m[2]!.trim();
     const opcode = OPCODES[mnemonic];
     if (opcode === undefined) {
-      errors.push({ line, message: `unknown instruction '${mnemonic}'` });
+      errors.push({ line, message: `Unknown instruction '${mnemonic}'` });
       return;
     }
     if (rest) {
       const prefix = MODES[rest[0]!];
       if (prefix !== undefined) rest = rest.slice(1);
       const value = parseOperand(rest);
-      if (value === null) {
-        errors.push({ line, message: `invalid operand '${rest.trim()}'` });
+      if (typeof value === "string") {
+        errors.push({ line, message: value });
         return;
       }
       mode = prefix ?? DIRECT;
