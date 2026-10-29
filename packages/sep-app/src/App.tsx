@@ -1,18 +1,22 @@
 import { parseMem, RAM_WORDS } from "@sepsim/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CategoryTree, type Selection } from "./components/CategoryTree";
 import { FloatingWindow } from "./components/FloatingWindow";
 import { MemoryTable } from "./components/MemoryTable";
 import { type MenuDef, MenuBar } from "./components/Menu";
 import { ProgramEditor } from "./components/ProgramEditor";
 import { Schematic } from "./components/Schematic";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { Toolbar } from "./components/Toolbar";
 import { ValueTable } from "./components/ValueTable";
-import { openFile } from "./platform";
-import { ACCUMULATOR_DIAGRAM, type Diagram, parseDia } from "./sim/diagram";
-import { CATEGORY_LABELS, DEFAULT_ENTITIES, DEFAULT_MEMORIES } from "./sim/entities";
+import { openFile, saveFile } from "./platform";
+import { ACCUMULATOR_DIAGRAM, parseDia, writeDia } from "./sim/diagram";
+import { diagramStore } from "./sim/diagramStore";
+import { CATEGORY_LABELS, DEFAULT_MEMORIES } from "./sim/entities";
 import type { Radix } from "./sim/format";
 import { STEP_MODES, session } from "./sim/session";
+import { settings } from "./sim/settings";
+import { useStore } from "./sim/store";
 import { useSession } from "./sim/useSession";
 
 const viewKey = (sel: Selection) => (sel.category === "memories" ? sel.memory : sel.category);
@@ -32,7 +36,11 @@ export default function App() {
   const [selected, setSelected] = useState<Selection>({ category: "registers" });
   const [radix, setRadix] = useState<Record<string, Radix>>({});
   const [editor, setEditor] = useState(false);
-  const [diagram, setDiagram] = useState<Diagram>(ACCUMULATOR_DIAGRAM);
+  const diagram = useStore(diagramStore);
+  const builtIn = useMemo(() => JSON.stringify(diagram) === JSON.stringify(ACCUMULATOR_DIAGRAM), [diagram]);
+  const [editingDiagram, setEditingDiagram] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const conf = useStore(settings);
   const [showSchematic, setShowSchematic] = useState(true);
   const [bottomTab, setBottomTab] = useState<"schematic" | "messages">("schematic");
   const [popouts, setPopouts] = useState<{ id: number; sel: Selection }[]>([]);
@@ -53,13 +61,25 @@ export default function App() {
     }
   }, [s]);
 
+  const showDiagram = () => {
+    setShowSchematic(true);
+    setBottomTab("schematic");
+  };
+  const editDiagram = () => {
+    showDiagram();
+    setEditingDiagram(true);
+  };
+  const saveDiagram = () => {
+    const name = /\.dia$/i.test(diagram.name) ? diagram.name : `${diagram.name || "diagram"}.dia`;
+    void saveFile(name, writeDia(diagram), "SEPSim diagram").then((saved) => saved && diagramStore.set({ ...diagram, name: saved }));
+  };
+
   const loadDiagram = async () => {
     const f = await openFile(".dia");
     if (!f) return;
     try {
-      setDiagram(parseDia(await f.bytes(), f.name));
-      setShowSchematic(true);
-      setBottomTab("schematic");
+      diagramStore.set(parseDia(await f.bytes(), f.name));
+      showDiagram();
     } catch (e) {
       alert(`${f.name}: ${(e as Error).message}`);
     }
@@ -67,7 +87,7 @@ export default function App() {
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (editor) return;
+      if (editor || settingsOpen) return;
       if (e.key === "F10") {
         e.preventDefault();
         session.singleStep();
@@ -75,17 +95,21 @@ export default function App() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [editor]);
+  }, [editor, settingsOpen]);
 
   const menus: MenuDef[] = [
     { label: "File", items: [
       { label: "New Program", onClick: () => setEditor(true) },
       { label: "Program Editor…", onClick: () => setEditor(true) },
     ] },
-    { label: "Edit", items: (["Binary (2)", "Decimal (10)", "Hexadecimal (16)"] as const).map((label, i) => {
-      const r = ([2, 10, 16] as Radix[])[i]!;
-      return { label: `Radix: ${label}`, checked: radixOf(selected) === r, onClick: () => setRadixOf(selected)(r) };
-    }) },
+    { label: "Edit", items: [
+      ...(["Binary (2)", "Decimal (10)", "Hexadecimal (16)"] as const).map((label, i) => {
+        const r = ([2, 10, 16] as Radix[])[i]!;
+        return { label: `Radix: ${label}`, checked: radixOf(selected) === r, onClick: () => setRadixOf(selected)(r) };
+      }),
+      "separator",
+      { label: "Settings…", onClick: () => setSettingsOpen(true) },
+    ] },
     { label: "Simulation", items: [
       { label: "Initialize", onClick: () => s.initialize() },
       { label: "End", onClick: () => s.end(), disabled: !s.initialized },
@@ -97,9 +121,12 @@ export default function App() {
       ...STEP_MODES.map((m) => ({ label: m.label, checked: s.mode === m.value, onClick: () => s.setMode(m.value) })),
     ] },
     { label: "Schematic", items: [
+      { label: "New", onClick: () => { diagramStore.set({ name: "Untitled.dia", elements: [] }); editDiagram(); } },
       { label: "Load…", onClick: loadDiagram },
-      { label: "Accumulator (built in)", onClick: () => setDiagram(ACCUMULATOR_DIAGRAM), checked: diagram === ACCUMULATOR_DIAGRAM },
+      { label: "Save As…", onClick: saveDiagram },
+      { label: "Accumulator (built in)", onClick: () => diagramStore.set(ACCUMULATOR_DIAGRAM), checked: builtIn },
       "separator",
+      { label: "Edit Current", checked: editingDiagram, onClick: () => (editingDiagram ? setEditingDiagram(false) : editDiagram()) },
       { label: "Show schematic", checked: showSchematic, onClick: () => setShowSchematic(!showSchematic) },
     ] },
     { label: "View", items: [
@@ -113,7 +140,7 @@ export default function App() {
     sel.category === "memories" ? (
       <MemoryTable path={sel.memory} title={viewTitle(sel)} radix={radixOf(sel)} onRadix={setRadixOf(sel)} />
     ) : (
-      <ValueTable entities={DEFAULT_ENTITIES[sel.category]} radix={radixOf(sel)} onRadix={setRadixOf(sel)} />
+      <ValueTable entities={conf.entities[sel.category]} radix={radixOf(sel)} onRadix={setRadixOf(sel)} />
     );
 
   const errors = s.log.filter((l) => l.kind !== "info").length;
@@ -169,7 +196,11 @@ export default function App() {
                 ))}
               </div>
               <div className="min-h-0 flex-1">
-                {bottomTab === "schematic" ? <Schematic diagram={diagram} /> : <Messages />}
+                {bottomTab === "schematic" ? (
+                  <Schematic diagram={diagram} editing={editingDiagram ? { onChange: (d) => diagramStore.set(d), onDone: () => setEditingDiagram(false) } : undefined} />
+                ) : (
+                  <Messages />
+                )}
               </div>
             </section>
           </>
@@ -182,6 +213,7 @@ export default function App() {
       ))}
       {editor && <ProgramEditor dark={dark} onClose={() => setEditor(false)} />}
       {about && <About onClose={() => setAbout(false)} />}
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} onEditDiagram={editDiagram} />}
     </div>
   );
 }

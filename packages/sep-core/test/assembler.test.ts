@@ -26,6 +26,13 @@ describe("assembler", () => {
     expect(buildSummary(p)).toBe("Build failed. 4 errors, 0 warnings");
   });
 
+  it("uses an edited instruction set", () => {
+    const isa = { opcodes: { load: 0b11111, constructor: 0b00001 }, modes: { "%": 0b000 }, direct: 0b100 };
+    expect(assemble("load %7\nconstructor", isa).words).toEqual([...encode(0b11111, 0, 7), ...encode(0b00001, 0, 7)]);
+    expect(assemble("loadacc #1", isa).errors[0]?.message).toBe("Unknown instruction 'loadacc'");
+    expect(assemble("toString 1").errors[0]?.message).toBe("Unknown instruction 'tostring'");
+  });
+
   const cases = goldenCases("accumulator");
   it.skipIf(cases.length === 0)("builds the same .mem files the recordings were made from", () => {
     for (const c of cases) {

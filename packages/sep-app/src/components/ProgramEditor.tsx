@@ -1,10 +1,12 @@
 import Editor, { type OnMount } from "@monaco-editor/react";
-import { type Diagnostic, MEM_HEADER, assemble, buildSummary, formatMem } from "@sepsim/core";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { SEP_LANGUAGE, monaco } from "../monaco";
+import { ACCUMULATOR_ISA, type Diagnostic, MEM_HEADER, assemble, buildSummary, formatMem } from "@sepsim/core";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SEP_LANGUAGE, monaco, setInstructionSet } from "../monaco";
 import { openFile, saveFile } from "../platform";
 import { ACCUMULATOR_INSTRUCTIONS } from "../sim/isa";
 import { session } from "../sim/session";
+import { instructionSet, settings } from "../sim/settings";
+import { useStore } from "../sim/store";
 
 type EditorInstance = Parameters<OnMount>[0];
 
@@ -17,6 +19,9 @@ function toPrg(source: string): string {
   return withHeader.replace(/\n/g, "\r\n");
 }
 
+/** What the default mode symbols mean on the Accumulator architecture. */
+const MODE_NAMES: Record<string, string> = { "#": "immediate", "&": "indirect", $: "(not valid on Accumulator)", "!": "(not implemented)", "@": "(not implemented)" };
+
 const baseName = (name: string) => name.replace(/\.[^.]*$/, "");
 
 export function ProgramEditor({ onClose, dark }: { onClose: () => void; dark: boolean }) {
@@ -25,6 +30,18 @@ export function ProgramEditor({ onClose, dark }: { onClose: () => void; dark: bo
   const [dirty, setDirty] = useState(false);
   const [output, setOutput] = useState<{ text: string; line?: number; error?: boolean }[]>([]);
   const editorRef = useRef<EditorInstance | null>(null);
+  const conf = useStore(settings);
+  const isa = useMemo(() => instructionSet(conf), [conf]);
+  useEffect(() => setInstructionSet(isa), [isa]);
+  const instructions = useMemo(() => {
+    // Describe each opcode by what SEP does with its code, so a renamed instruction keeps its description.
+    const known = (code: number) => ACCUMULATOR_INSTRUCTIONS.findIndex((i) => ACCUMULATOR_ISA.opcodes[i.mnemonic] === code);
+    return Object.entries(isa.opcodes)
+      .map(([mnemonic, code]) => ({ mnemonic, order: known(code) }))
+      .sort((x, y) => (x.order < 0 ? 99 : x.order) - (y.order < 0 ? 99 : y.order))
+      .map(({ mnemonic, order }) => ({ mnemonic, text: order < 0 ? "no Accumulator instruction has this code" : ACCUMULATOR_INSTRUCTIONS[order]!.text }));
+  }, [isa]);
+  const modeSymbols = Object.keys(isa.modes);
 
   const showErrors = useCallback((errors: Diagnostic[]) => {
     const model = editorRef.current?.getModel();
@@ -40,7 +57,7 @@ export function ProgramEditor({ onClose, dark }: { onClose: () => void; dark: bo
   }, []);
 
   const check = () => {
-    const p = assemble(source);
+    const p = assemble(source, isa);
     showErrors(p.errors);
     setOutput([...p.errors.map((e) => ({ text: `Line ${e.line}: ${e.message}`, line: e.line, error: true })), { text: buildSummary(p) }]);
     return p;
@@ -118,9 +135,10 @@ export function ProgramEditor({ onClose, dark }: { onClose: () => void; dark: bo
           <aside className="w-72 overflow-auto border-l border-slate-300 p-2 text-sm dark:border-slate-600">
             <div className="mb-1 font-semibold">Instructions</div>
             <p className="mb-2 text-xs text-slate-500">
-              Modes: <code>#</code> immediate, none direct, <code>&amp;</code> indirect. An instruction with no operand reuses the previous line's mode and operand.
+              Modes: none for direct{modeSymbols.map((m) => <span key={m}>, <code>{m}</code>{MODE_NAMES[m] ? ` ${MODE_NAMES[m]}` : ""}</span>)}.
+              An instruction with no operand reuses the previous line's mode and operand.
             </p>
-            {ACCUMULATOR_INSTRUCTIONS.map((i) => (
+            {instructions.map((i) => (
               <button
                 key={i.mnemonic}
                 className="block w-full rounded px-1 py-0.5 text-left hover:bg-sky-100 dark:hover:bg-sky-900"

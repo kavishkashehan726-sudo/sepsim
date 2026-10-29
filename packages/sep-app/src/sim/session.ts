@@ -6,6 +6,7 @@
 import {
   type Bits, Machine, MEMORIES, RAM_WORDS, SIGNAL_BY_PATH, SIGNALS, assemble, toBinary,
 } from "@sepsim/core";
+import { displayTime, settings } from "./settings";
 
 export type StepMode = "RTL" | "IL" | "IL-Slow";
 export const STEP_MODES: { value: StepMode; label: string }[] = [
@@ -69,7 +70,7 @@ export class Session {
   }
 
   private say(text: string, kind: LogLine["kind"] = "info"): void {
-    this.log = [...this.log.slice(-199), { time: this.machine?.timeNs ?? 0, text, kind }];
+    this.log = [...this.log.slice(-199), { time: displayTime(this.machine?.timeNs ?? 0, settings.get()), text, kind }];
   }
 
   // --- simulation control ---
@@ -134,7 +135,7 @@ export class Session {
     }
     if (this.mode === "RTL") {
       this.remember();
-      m.step();
+      for (let i = 0; i < settings.get().stepHalfClocks && m.halfStep(); i++);
     } else if (this.mode === "IL") {
       this.remember();
       const n = m.stepInstruction(INSTRUCTION_LIMIT);
@@ -184,7 +185,7 @@ export class Session {
     if (!h) return;
     const where = h.address === null ? "an unknown address" : `address 0x${h.address.toString(16)}`;
     this.say(
-      `Simulation stopped at ${h.timeNs} ns: the program used ${where}, outside program memory ` +
+      `Simulation stopped at ${displayTime(h.timeNs, settings.get())} ns: the program used ${where}, outside program memory ` +
         `(0x0 to 0x${(RAM_WORDS - 1).toString(16)}). Restart to run again.`,
       "error",
     );

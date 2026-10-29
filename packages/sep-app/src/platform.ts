@@ -25,16 +25,17 @@ export function openFile(accept: string): Promise<OpenedFile | null> {
 
 interface SavePicker {
   showSaveFilePicker?: (o: { suggestedName: string; types: { description: string; accept: Record<string, string[]> }[] }) =>
-    Promise<{ name: string; createWritable(): Promise<{ write(d: string): Promise<void>; close(): Promise<void> }> }>;
+    Promise<{ name: string; createWritable(): Promise<{ write(d: string | Uint8Array): Promise<void>; close(): Promise<void> }> }>;
 }
 
-/** Save text; returns the chosen file name, or null if the user cancelled. */
-export async function saveFile(suggestedName: string, content: string, description: string): Promise<string | null> {
+/** Save a file; returns the chosen file name, or null if the user cancelled. */
+export async function saveFile(suggestedName: string, content: string | Uint8Array, description: string): Promise<string | null> {
   const ext = suggestedName.slice(suggestedName.lastIndexOf("."));
   const picker = (window as unknown as SavePicker).showSaveFilePicker;
   if (picker) {
     try {
-      const handle = await picker({ suggestedName, types: [{ description, accept: { "text/plain": [ext] } }] });
+      const mime = typeof content === "string" ? "text/plain" : "application/octet-stream";
+      const handle = await picker({ suggestedName, types: [{ description, accept: { [mime]: [ext] } }] });
       const w = await handle.createWritable();
       await w.write(content);
       await w.close();
@@ -45,7 +46,7 @@ export async function saveFile(suggestedName: string, content: string, descripti
     }
   }
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
+  a.href = URL.createObjectURL(new Blob([content as BlobPart], { type: typeof content === "string" ? "text/plain" : "application/octet-stream" }));
   a.download = suggestedName;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
