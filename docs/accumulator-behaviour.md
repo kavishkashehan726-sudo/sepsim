@@ -6,8 +6,9 @@ recorded clock by clock in ModelSim 6.1e with `tools/vm-trace-kit` and summarise
 ("ISA 2") or the lab sheet, **this file wins**: the new simulator must match the model,
 not the manual.
 
-Status: first round of traces, 17 programs, 2026-10-28. Items marked *open* need a
-second round of test programs.
+Status: round 1 (17 programs, 2026-10-28) and round 2 (10 programs, 2026-10-29).
+Items marked *open* need more test programs. The traces themselves are in the private
+repo linked at `tests/golden`.
 
 ## Machine
 
@@ -30,13 +31,14 @@ ModelSim `examine` lists `asram` and `storage` with the **highest index first**.
 | Bit | Flag | Meaning as observed |
 | --- | --- | --- |
 | 4 | P parity | 1 when the result has an **even** number of 1 bits (so 0 gives P = 1) |
-| 3 | S sign | sign of the *true* result for add/sub/mul/div, so `0x7FFF + 1` gives S = 0, `0x8000 - 1` gives S = 1. Logic ops, NOT, shifts and rotates leave S = 0 |
+| 3 | S sign | sign of the *true* result for add/sub/inc/mul, so `0x7FFF + 1` gives S = 0, `0x8000 - 1` gives S = 1. div: sign of dividend XOR sign of the 19-bit divisor, even when the quotient is 0. NOT, shifts and rotates appear to **keep the old S** (it stayed 1 through `not`/`shl`/`shr`/`rol`/`ror` in a Stack trace; every Accumulator case started with S = 0). *Open:* the same check for and/or/xor |
 | 2 | O overflow | signed overflow (`0x7FFF + 1`, `0x8000 - 1`, INC of `0x7FFF`) |
 | 1 | C carry | add: carry out. sub: **1 when there is no borrow** (`9 - 7` gives C = 1, `7 - 9` gives C = 0). Shifts/rotates: the bit shifted out |
 | 0 | Z zero | result is 0 |
 
-Every ALU instruction rewrites the whole register, including NOT (the manual says NOT
-affects no flags; the model updates P and Z).
+Every ALU instruction writes the status register, including NOT (the manual says NOT
+affects no flags; the model updates P and Z), but NOT, shifts and rotates seem to carry
+S over unchanged (see above).
 
 ## Instruction timing (control unit states)
 
@@ -53,10 +55,11 @@ read through MAR/MDR during the fetch states. Immediate-mode ALU instructions an
 | ALU op, indirect (`add &0x91`) | `op2_indirect2acc > op2_indirect3acc > op2_indirect4acc > execution_accumulator` | 13 |
 | `loadacc 0x90` (direct) | `load2_direct_acc > load3_direct_acc` | 11 |
 | `storeacc 0x80` (direct) | `mdr_to_mem1_acc > mdr_to_mem2_acc` | 11 |
-| `storeacc &0x91` (indirect) | `store2_indirect_acc > store3_indirect_acc > mdr_to_mem1_acc > ...` | not yet seen completing (see hangs) |
+| `storeacc &0x91` (indirect) | `store2_indirect_acc > store3_indirect_acc > mdr_to_mem1_acc > mdr_to_mem2_acc` | 13 |
 | `call` | `call2 > call3` | 11 |
 | `ret` | `ret2 > ret3` | 11 |
-| `looz` | `looz2 > looz3 > looz4` | 12 |
+| `looz`, falls through | `looz2 > looz3 > looz4` | 12 |
+| `looz`, jumps | `looz2 > looz3 > looz4 > looz5` | 13 |
 
 Before the first instruction the control unit spends one clock in `init`.
 
@@ -64,13 +67,15 @@ Before the first instruction the control unit spends one clock in `init`.
 
 | Instruction | Observed result |
 | --- | --- |
-| `loadacc #n` | acc = n (low 16 bits of the operand) |
+| `loadacc #n` | acc = n (low 16 bits of the 19-bit operand: `#0x12345` gives 0x2345, `#-1` gives 0xFFFF) |
 | `loadacc addr` | acc = mem[addr] |
+| `loadacc &p` | **does nothing** (9 clocks, acc unchanged): indirect load is not implemented |
 | `storeacc addr` | mem[addr] = acc |
-| `add`, `sub` | acc = acc + op, acc = acc - op (16-bit wrap), flags as above |
+| `storeacc &p` | mem[mem[p]] = acc, 13 clocks (`store2_indirect_acc > store3_indirect_acc > mdr_to_mem1_acc > mdr_to_mem2_acc`) |
+| `add`, `sub` | acc = acc + op, acc = acc - op (16-bit wrap), flags as above. Immediates use the low 16 bits: `0xFFFF + #0x10001` gives 0 with C = 1. `add &p` adds mem[mem[p]] |
 | `and`, `or`, `xor` | bitwise; S = O = C = 0 |
-| `mul` | signed 8 x 8: acc = sext(acc[7:0]) x sext(op[7:0]), 16-bit result. `0xFF x 2 = 0xFFFE`, `0x1234 x 0x156 = 0x34 x 0x56 = 0x1178` |
-| `div` | positive values: integer quotient (`100 / 7 = 14`). Divide by 0 gives 0 with Z = 1. *Open:* `0xFF9C / 7` gives `0x923A`, which matches the dividend sign-extended to 18 bits and divided unsigned; needs more cases |
+| `mul` | signed 8 x 8: acc = sext(acc[7:0]) x sext(op[7:0]), 16-bit result. Confirmed on all sign cases: `0x80 x 0x80 = 0x4000`, `0x80 x 0x7F = 0xC080`, `0xFF x 0xFF = 1`, `5 x #-3 = 0xFFF1`, `5 x mem 0xFFFE = 0xFFF6`. O = C = 0 |
+| `div` | **unsigned** division of the accumulator sign-extended to 18 bits by the 19-bit operand (memory words are sign-extended to 19 bits); acc = low 16 bits of the quotient. Fits every case: `0xFF9C / 7 = 0x923A`, `0x8000 / 2 = 0xC000`, `0xFFFF / 1 = 0xFFFF`, `100 / #-7 = 0`, `0x7FFF / mem 0xFFF9 = 0`, `100 / 7 = 14`, divide by 0 gives 0. O = C = 0 |
 | `inc` | acc + 1, flags like `add` |
 | `not` | one's complement; updates P and Z |
 | `shl` | acc << 1, C = old bit 15, O = 1 if bit 15 changed |
@@ -79,9 +84,9 @@ Before the first instruction the control unit spends one clock in `init`.
 | `ror` | rotate right **through carry**: new bit 15 = old C, new C = old bit 0 |
 | `jz`, `jc`, `js`, `jof`, `jp` | if the flag is 1: PC = PC + 3 + operand (offset counted in **words** from the next instruction; 19-bit two's complement, so `0x7FFFA` = -6) |
 | `jump n` | PC = PC + 3 + n, always |
-| `call n` | mem[0x94] = PC + 3 (return address), PC = n (**absolute**, not relative) |
+| `call n` | mem[0x94] = PC + 3 (return address), PC = n (**absolute**, not relative). A call inside a subroutine overwrites mem[0x94], so the outer `ret` returns to the inner return address and loops forever |
 | `ret` | PC = mem[0x94] |
-| `looz n` | *partly open.* The counter is **mem[0x95]**: `idecode` loads MAR with the constant 0x95, `looz2` reads it into MDR, `looz3` decrements it in the ALU (flags set from the result, MDR = result). With the counter at 0 the result was 0xFFFF, nothing was written back to memory and it fell through to the next instruction. The control unit also has `looz5` and `looz6` states, not reached yet (round 2 tests counters 1, 2 and 3) |
+| `looz n` | counter = mem[0x95]. Computes counter - 1 (flags set like `sub`). If the result is **greater than 0** (signed): writes it back to mem[0x95] and jumps to PC + 3 + n (13 clocks, `looz2..looz5`). Otherwise (result 0 or negative): **no write-back**, falls through (12 clocks, `looz2..looz4`). So a loop with counter 3 runs the body 3 times and leaves mem[0x95] = 1; counter 0 falls through at once. The addressing mode is ignored (`looz -6` behaves like `looz #-6`) |
 | `nop` | nothing, 9 clocks (direct mode) |
 
 ## Hangs (the model stops making progress)
@@ -94,9 +99,11 @@ simulator must reproduce them (the student sees the simulation stop advancing).
 | any store to an address above 0x96 (`storeacc 0x1F4`, `storeacc &p` where p holds 0xA0) | `mdr_to_mem1_acc` |
 | `nop` with immediate mode (`loadacc #21` then a bare `nop` reuses mode `#`) | `idecode` |
 | `add $1` (register-direct mode is not valid for Accumulator) | `idecode` |
+| `add !p` and `add @p` (modes 110 and 111) | `idecode` |
 
-Other invalid modes do nothing and continue: `loadacc &0x90` leaves acc unchanged,
-`storeacc #0x55` writes nothing, `shl #3` shifts as usual.
+Other invalid modes do nothing and continue: `loadacc &p`, `loadacc !p` and `loadacc @p`
+leave acc unchanged, `storeacc #0x55` writes nothing, `shl #3` shifts as usual. The `!` and
+`@` modes are not implemented for Accumulator at all.
 
 ## Assembler (from 13 real .prg/.mem pairs)
 
@@ -107,10 +114,7 @@ Other invalid modes do nothing and continue: `loadacc &0x90` leaves acc unchange
   **and** operand. Lab programs rely on this (`loadacc #21` then `js` jumps by 21).
 - No mode symbol means direct (100).
 
-## Open questions for round 2
+## Open questions
 
-- `looz`: when it writes the counter back and when it jumps (counter address is 0x95).
-- `div` with negative operands, and with a negative divisor.
-- Flags for `mul` overflow (results that do not fit in 16 bits cannot happen with 8 x 8, but sign cases need checking).
-- Indirect `loadacc` and indirect store to a valid address.
+- S flag after and/or/xor when S was 1 before.
 - What a bare instruction on the first line encodes (assembler check results pending).
