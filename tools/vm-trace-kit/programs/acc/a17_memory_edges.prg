@@ -1,0 +1,7 @@
+loadacc #0xBEEF
+storeacc 0x1F4
+loadacc 0x1F4
+storeacc 0x1F5
+loadacc 0x1F5
+storeacc 0x7FFFF
+//@clocks 300

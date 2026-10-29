@@ -1,0 +1,3 @@
+[submodule "tests/golden"]
+	path = tests/golden
+	url = https://github.com/kavishkashehan726-sudo/sepsim-golden-traces.git

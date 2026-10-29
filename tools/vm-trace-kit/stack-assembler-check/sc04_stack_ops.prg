@@ -1,0 +1,3 @@
+dup
+swap
+rotate3

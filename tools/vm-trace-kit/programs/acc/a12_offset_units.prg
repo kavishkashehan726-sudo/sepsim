@@ -1,0 +1,9 @@
+loadacc #0
+jump #1
+loadacc #1
+loadacc #2
+loadacc #3
+loadacc #4
+loadacc #5
+loadacc #6
+storeacc 0x80

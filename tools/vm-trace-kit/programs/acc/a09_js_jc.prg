@@ -1,0 +1,14 @@
+loadacc #7
+sub #9
+js #6
+loadacc #1
+storeacc 0x80
+loadacc #2
+storeacc 0x81
+loadacc #0xFFFF
+add #1
+jc #6
+loadacc #3
+storeacc 0x82
+loadacc #4
+storeacc 0x83

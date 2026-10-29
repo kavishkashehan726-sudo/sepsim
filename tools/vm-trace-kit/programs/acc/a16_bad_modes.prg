@@ -1,0 +1,8 @@
+loadacc &0x90
+storeacc #0x55
+shl #3
+add $1
+add !1
+add @1
+//@data 0x90 0x0091
+//@data 0x91 0x0033

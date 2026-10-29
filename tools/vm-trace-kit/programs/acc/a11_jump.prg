@@ -1,0 +1,9 @@
+jump #9
+loadacc #1
+storeacc 0x80
+loadacc #2
+storeacc 0x81
+jump #0x7FFFA
+loadacc #3
+storeacc 0x82
+//@clocks 300
