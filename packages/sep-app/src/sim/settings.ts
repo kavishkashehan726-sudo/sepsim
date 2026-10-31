@@ -31,6 +31,11 @@ export interface Settings {
   dutyCycle: number;
   /** How far one RTL single step runs, in half clocks (2 = one clock). */
   stepHalfClocks: number;
+  /**
+   * Stop stepping when the next instruction is empty (all zeros). SEP has no halt
+   * instruction, so without this it runs on through empty memory like the original.
+   */
+  stopAtEnd: boolean;
   opcodes: OpcodeRow[];
   modes: ModeRow[];
 }
@@ -43,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   periodNs: 50,
   dutyCycle: 50,
   stepHalfClocks: 2,
+  stopAtEnd: true,
   opcodes: Object.entries(ACCUMULATOR_ISA.opcodes).map(([mnemonic, v]) => ({ mnemonic, bits: bin(v, 5) })),
   modes: [
     ...Object.entries(ACCUMULATOR_ISA.modes).map(([symbol, v]) => ({ symbol, bits: bin(v, 3) })),

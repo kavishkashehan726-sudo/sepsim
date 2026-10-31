@@ -43,7 +43,10 @@ Use this checklist to test a new installer on a lab PC.
 2. **Run the sample program.** Click the first toolbar button (or **Simulation >
    Initialize**). Press **F10** to step. In **RTL** mode each step is one clock; switch the
    mode box to **IL** and each step is one instruction. Values that changed turn red, in the
-   table and on the schematic. After three IL steps the Accumulator holds `000f`.
+   table and on the schematic. After three IL steps the Accumulator holds `000f`. Under
+   **Program Memory** a red arrow points at the next instruction. When the program ends,
+   stepping stops and the **Messages** tab says "End of program" (SEP has no halt
+   instruction; **Edit > Settings > Control** can let it run on, like the original).
 3. **Look inside.** Click **Program Memory** or **Buses** on the left. Right-click a table to
    switch between binary, decimal and hexadecimal. Hover over the schematic to see a value
    in binary. Double-click a table to open it in its own window.
