@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the SEPSim window may do: the core defaults, and opening web and mail links outside the app.",
+  "windows": ["main"],
+  "permissions": ["core:default", "opener:default"]
+}

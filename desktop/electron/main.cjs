@@ -32,7 +32,7 @@ function createWindow() {
   win.once("ready-to-show", () => win.show());
   // Everything is offline: links that leave the app open in the system browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/.test(url)) shell.openExternal(url);
+    if (/^(https?|mailto):/.test(url)) shell.openExternal(url);
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (e, url) => {

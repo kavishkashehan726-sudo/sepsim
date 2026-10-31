@@ -9,7 +9,7 @@ import { Schematic } from "./components/Schematic";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Toolbar } from "./components/Toolbar";
 import { ValueTable } from "./components/ValueTable";
-import { openFile, saveFile } from "./platform";
+import { openExternal, openFile, saveFile } from "./platform";
 import { ACCUMULATOR_DIAGRAM, parseDia, writeDia } from "./sim/diagram";
 import { diagramStore } from "./sim/diagramStore";
 import { CATEGORY_LABELS, DEFAULT_MEMORIES } from "./sim/entities";
@@ -232,15 +232,48 @@ function Messages() {
   );
 }
 
+const AUTHOR_LINKS = [
+  { label: "Portfolio", url: "https://kavishkashehan726-sudo.github.io/my-portfolio/" },
+  { label: "LinkedIn", url: "https://www.linkedin.com/in/shehankavishka" },
+  { label: "kavishkashehan726@gmail.com", url: "mailto:kavishkashehan726@gmail.com" },
+];
+
 function About({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose} role="dialog" aria-label="About SEPSim">
       <div className="max-w-md rounded-lg bg-white p-5 text-sm shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-2 text-lg font-semibold">SEPSim</h2>
-        <p className="mb-2">Simulator for the Students' Experimental Processor (SEP), rebuilt as an offline desktop app.</p>
+        <div className="mb-3 flex items-center gap-3">
+          <img src="./icon.png" alt="" className="h-12 w-12" />
+          <div>
+            <h2 className="text-lg font-semibold leading-tight">SEPSim</h2>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Version {__APP_VERSION__} Beta</div>
+          </div>
+        </div>
+        <p className="mb-3">Simulator for the Students' Experimental Processor (SEP), rebuilt as an offline desktop app.</p>
+        <div className="mb-3 rounded border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Rebuilt in 2026 by</div>
+          <div className="font-semibold">K. H. Shehan Kavishka</div>
+          <div className="mb-2 text-slate-600 dark:text-slate-300">Full stack engineer, first-year student at The Open University of Sri Lanka</div>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {AUTHOR_LINKS.map((l) => (
+              <a
+                key={l.url}
+                href={l.url}
+                className="text-sky-700 underline hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openExternal(l.url);
+                }}
+              >
+                {l.label}
+              </a>
+            ))}
+          </div>
+        </div>
         <p className="mb-2">
           The original SEPSim (2007, S. Sampath Subasinghe, The Open University of Sri Lanka) ran the SEP VHDL model
           in ModelSim. This version simulates SEP directly and matches recordings of the original model clock by clock.
+          It was rebuilt with the permission of the original authors.
         </p>
         <p className="mb-4">This version supports the Accumulator architecture.</p>
         <button className="rounded bg-sky-600 px-3 py-1 text-white" onClick={onClose}>OK</button>
