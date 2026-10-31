@@ -23,6 +23,20 @@ export function openFile(accept: string): Promise<OpenedFile | null> {
   });
 }
 
+interface TauriWindow {
+  __TAURI_INTERNALS__?: { invoke(cmd: string, args: Record<string, unknown>): Promise<unknown> };
+}
+
+/**
+ * Open a web or mailto link in the system's browser or mail app. In Electron a new window is
+ * refused and passed to the system (desktop/electron/main.cjs); Tauri needs its opener plugin.
+ */
+export function openExternal(url: string): void {
+  const tauri = (window as unknown as TauriWindow).__TAURI_INTERNALS__;
+  if (tauri) void tauri.invoke("plugin:opener|open_url", { url });
+  else window.open(url, "_blank", "noopener");
+}
+
 interface SavePicker {
   showSaveFilePicker?: (o: { suggestedName: string; types: { description: string; accept: Record<string, string[]> }[] }) =>
     Promise<{ name: string; createWritable(): Promise<{ write(d: string | Uint8Array): Promise<void>; close(): Promise<void> }> }>;

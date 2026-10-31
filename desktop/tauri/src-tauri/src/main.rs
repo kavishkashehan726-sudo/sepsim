@@ -6,6 +6,8 @@
 
 fn main() {
     tauri::Builder::default()
+        // Opens the links in Help > About in the system's browser or mail app.
+        .plugin(tauri_plugin_opener::init())
         .run(tauri::generate_context!())
         .expect("SEPSim could not start");
 }

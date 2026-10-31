@@ -76,6 +76,17 @@ If something does not work, open an
 [issue](https://github.com/kavishkashehan726-sudo/sepsim/issues) with the Windows version,
 32- or 64-bit, which installer you used, and a screenshot of the **Messages** tab.
 
+## Credits
+
+SEPSim was rebuilt in 2026 by **K. H. Shehan Kavishka**, a full stack engineer and first-year
+student at The Open University of Sri Lanka
+([portfolio](https://kavishkashehan726-sudo.github.io/my-portfolio/),
+[LinkedIn](https://www.linkedin.com/in/shehankavishka), kavishkashehan726@gmail.com).
+
+The original SEPSim (2007) is by S. Sampath Subasinghe, The Open University of Sri Lanka. It ran
+the SEP VHDL model in ModelSim. This rebuild was made with the permission of the original
+authors.
+
 ## Golden traces
 
 `tests/golden` is a submodule pointing at a **private** repo of recordings from the
