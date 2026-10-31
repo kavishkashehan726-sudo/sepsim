@@ -133,9 +133,14 @@ export class Session {
       this.reportHalt();
       return this.changed();
     }
+    if (this.atEnd()) {
+      const finished = "The program has finished. Restart to run it again, or load another program.";
+      if (this.log.at(-1)?.text !== finished) this.say(finished);
+      return this.changed();
+    }
     if (this.mode === "RTL") {
       this.remember();
-      for (let i = 0; i < settings.get().stepHalfClocks && m.halfStep(); i++);
+      for (let i = 0; i < settings.get().stepHalfClocks && m.halfStep() && !this.atEnd(); i++);
     } else if (this.mode === "IL") {
       this.remember();
       const n = m.stepInstruction(INSTRUCTION_LIMIT);
@@ -145,7 +150,29 @@ export class Session {
       return;
     }
     if (m.halted) this.reportHalt();
+    else this.reportEnd();
     this.changed();
+  }
+
+  /**
+   * True when SEP is about to fetch an empty instruction (three zero words) and the
+   * "Stop at the end of the program" setting is on.
+   */
+  atEnd(): boolean {
+    const m = this.machine;
+    if (!m || !settings.get().stopAtEnd || m.state !== "ifetch1") return false;
+    const pc = m.pc.op;
+    if (pc.u !== 0 || pc.v + 2 >= RAM_WORDS) return false;
+    return m.ram[pc.v] === 0 && m.ram[pc.v + 1] === 0 && m.ram[pc.v + 2] === 0;
+  }
+
+  private reportEnd(): void {
+    if (!this.atEnd()) return;
+    const pc = this.machine!.pc.op.v;
+    this.say(
+      `End of program: the next instruction, at 0x${pc.toString(16)}, is empty. SEP has no halt instruction, so ` +
+        "stepping stops here (Edit > Settings > Control to change this).",
+    );
   }
 
   private startSlowMotion(): void {
@@ -160,6 +187,7 @@ export class Session {
       const done = !ok || m.state === "ifetch1" || clocks >= INSTRUCTION_LIMIT;
       if (m.halted) this.reportHalt();
       else if (clocks >= INSTRUCTION_LIMIT && m.state !== "ifetch1") this.reportStuck();
+      else if (done) this.reportEnd();
       if (done) {
         this.running = false;
         this.timer = null;

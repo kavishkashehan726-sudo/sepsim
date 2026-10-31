@@ -178,6 +178,9 @@ function ControlTab({ draft, setDraft }: TabProps) {
           {[1, 2, 4, 6, 10, 20].map((n) => <option key={n} value={n}>{n * half} ns ({n === 1 ? "half a clock" : `${n / 2} clock${n === 2 ? "" : "s"}`})</option>)}
         </select>
       </Field>
+      <Field label="Stop at the end of the program" note="Stops when the next instruction is empty (all zeros). Off: SEP runs on through empty memory, like the original.">
+        <input type="checkbox" checked={draft.stopAtEnd} onChange={(e) => setDraft({ ...draft, stopAtEnd: e.target.checked })} />
+      </Field>
       <h3 className="mb-1 mt-4 font-semibold">Miscellaneous</h3>
       <Field label="Program counter"><code>/processor/sig_pc_out</code></Field>
       <Field label="Instruction terminator"><code>/processor/control_unit/cu_state</code> back to <code>ifetch1</code></Field>
